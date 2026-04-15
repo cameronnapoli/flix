@@ -188,36 +188,32 @@ def step2_crop_end(prev: Path) -> Path:
     return out
 
 
-def step3_convert_subtitles(subs: list[tuple[Path, str]], start_offset: float) -> list[tuple[Path, str]]:
+def step3_convert_subtitles(xml: Path, start_offset: float) -> Path:
     print("\n" + "=" * 60)
     print("STEP 3 — Convert TTML subtitles to SRT")
     print("=" * 60)
     nudge = float(ask("  Additional sync nudge in seconds (positive = later, negative = earlier)", "0"))
-    srts = []
-    for xml, lang in subs:
-        tick_rate = get_tick_rate(xml)
-        srt = OUT / f"subtitles_{lang}.srt"
-        ttml_to_srt(xml, start_offset - nudge, srt, tick_rate)
-        srts.append((srt, lang))
-    return srts
+    tick_rate = get_tick_rate(xml)
+    srt = OUT / "subtitles_spa.srt"
+    ttml_to_srt(xml, start_offset - nudge, srt, tick_rate)
+    return srt
 
 
-def step4_embed_subtitles(prev: Path, srts: list[tuple[Path, str]]) -> Path:
+def step4_embed_subtitles(prev: Path, srt: Path) -> Path:
     print("\n" + "=" * 60)
     print("STEP 4 — Embed subtitles")
     print("=" * 60)
     out = OUT / "step4_with_subs.mp4"
-    cmd = ["ffmpeg", "-i", str(prev)]
-    for srt, _ in srts:
-        cmd += ["-i", str(srt)]
-    cmd += ["-map", "0:v", "-map", "0:a"]
-    for i in range(len(srts)):
-        cmd += ["-map", str(i + 1)]
-    cmd += ["-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text"]
-    for i, (_, lang) in enumerate(srts):
-        cmd += [f"-metadata:s:s:{i}", f"language={lang}"]
-    cmd += ["-y", str(out)]
-    run(cmd, f"Mux video + {len(srts)} subtitle track(s) into MP4")
+    cmd = [
+        "ffmpeg",
+        "-i", str(prev),
+        "-i", str(srt),
+        "-map", "0:v", "-map", "0:a", "-map", "1",
+        "-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text",
+        "-metadata:s:s:0", "language=spa",
+        "-y", str(out),
+    ]
+    run(cmd, "Mux video + 1 subtitle track into MP4")
     print(f"\nOutput: {out}")
     return out
 
@@ -227,7 +223,7 @@ def step4_embed_subtitles(prev: Path, srts: list[tuple[Path, str]]) -> Path:
 # Main
 # ---------------------------------------------------------------------------
 
-def select_input_files() -> tuple[Path, list[tuple[Path, str]]]:
+def select_input_files() -> tuple[Path, Path]:
     data = Path("data")
     movs = sorted(data.glob("*.mov"))
     xmls = sorted(data.glob("*.xml"))
@@ -238,26 +234,20 @@ def select_input_files() -> tuple[Path, list[tuple[Path, str]]]:
         sys.exit("No .xml files found in data/")
 
     MOV = movs[0]
+    XML = xmls[0]
     print(f"\nFound video : {MOV}  ({MOV.stat().st_size / 1e9:.2f} GB)")
-    print(f"Found subs  :")
-    for xml in xmls:
-        print(f"  {xml}")
+    print(f"Found sub   : {XML}")
 
     if not confirm("\nUse these files?"):
         sys.exit("Aborted.")
 
-    subs: list[tuple[Path, str]] = []
-    for xml in xmls:
-        lang = ask(f"  Language code for {xml.name}", xml.stem.rsplit("_", 1)[-1])
-        subs.append((xml, lang))
-
-    return MOV, subs
+    return MOV, XML
 
 
 def main():
     print("Video processing pipeline")
 
-    MOV, subs = select_input_files()
+    MOV, XML = select_input_files()
 
     # Step 1
     start_offset, s1_out = step1_crop_start(MOV)
@@ -270,12 +260,12 @@ def main():
         sys.exit("Stopped after step 2.")
 
     # Steps 3 + 4
-    s3_srts = step3_convert_subtitles(subs, start_offset)
-    s4_out = step4_embed_subtitles(s2_out, s3_srts)
+    srt = step3_convert_subtitles(XML, start_offset)
+    s4_out = step4_embed_subtitles(s2_out, srt)
     print(f"\nAll done!  Final file: {s4_out}")
 
     # Cleanup
-    intermediates = [s1_out, s2_out] + [srt for srt, _ in s3_srts]
+    intermediates = [s1_out, s2_out, srt]
     if confirm("\nDelete intermediate files?"):
         for f in intermediates:
             f.unlink(missing_ok=True)
