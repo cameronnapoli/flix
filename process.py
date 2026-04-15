@@ -48,6 +48,14 @@ def confirm(msg: str) -> bool:
     return input(f"{msg} (y/n): ").strip().lower() == "y"
 
 
+def confirm_step(msg: str) -> str:
+    """Return 'y' (continue), 'n' (stop), or 'r' (redo)."""
+    while True:
+        v = input(f"{msg} (y/n/r): ").strip().lower()
+        if v in ("y", "n", "r"):
+            return v
+
+
 def parse_time(s: str) -> float:
     """Parse HH:MM:SS, MM:SS, or bare seconds into float seconds."""
     parts = s.split(":")
@@ -250,18 +258,35 @@ def main():
     MOV, XML = select_input_files()
 
     # Step 1
-    start_offset, s1_out = step1_crop_start(MOV)
-    if not confirm("\nStep 1 done. Inspect the output and continue to step 2?"):
-        sys.exit("Stopped after step 1.")
+    while True:
+        start_offset, s1_out = step1_crop_start(MOV)
+        r = confirm_step("\nStep 1 done. Inspect the output and continue to step 2?")
+        if r == "y":
+            break
+        if r == "n":
+            sys.exit("Stopped after step 1.")
+        # r == "r": redo
 
     # Step 2
-    s2_out = step2_crop_end(s1_out)
-    if not confirm("\nStep 2 done. Inspect the output and continue to step 3?"):
-        sys.exit("Stopped after step 2.")
+    while True:
+        s2_out = step2_crop_end(s1_out)
+        r = confirm_step("\nStep 2 done. Inspect the output and continue to step 3?")
+        if r == "y":
+            break
+        if r == "n":
+            sys.exit("Stopped after step 2.")
+        # r == "r": redo
 
     # Steps 3 + 4
-    srt = step3_convert_subtitles(XML, start_offset)
-    s4_out = step4_embed_subtitles(s2_out, srt)
+    while True:
+        srt = step3_convert_subtitles(XML, start_offset)
+        s4_out = step4_embed_subtitles(s2_out, srt)
+        r = confirm_step("\nSteps 3+4 done. Accept the result?")
+        if r == "y":
+            break
+        if r == "n":
+            sys.exit("Stopped after steps 3+4.")
+        # r == "r": redo
     print(f"\nAll done!  Final file: {s4_out}")
 
     # Cleanup
