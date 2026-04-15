@@ -209,19 +209,23 @@ def step3_convert_subtitles(xml: Path, start_offset: float) -> Path:
 
 def step4_embed_subtitles(prev: Path, srt: Path) -> Path:
     print("\n" + "=" * 60)
-    print("STEP 4 — Embed subtitles")
+    print("STEP 4 — Embed subtitles & strip metadata")
     print("=" * 60)
-    out = OUT / "step4_with_subs.mp4"
+    out = OUT / "final.mp4"
     cmd = [
         "ffmpeg",
         "-i", str(prev),
         "-i", str(srt),
         "-map", "0:v", "-map", "0:a", "-map", "1",
         "-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text",
+        "-map_metadata", "-1",
+        "-metadata:s:v:0", "handler_name=VideoHandler",
+        "-metadata:s:a:0", "handler_name=SoundHandler",
+        "-metadata:s:v:0", "encoder=",
         "-metadata:s:s:0", "language=spa",
         "-y", str(out),
     ]
-    run(cmd, "Mux video + 1 subtitle track into MP4")
+    run(cmd, "Mux video + subtitles, strip metadata → MP4")
     print(f"\nOutput: {out}")
     return out
 
@@ -280,14 +284,14 @@ def main():
     # Steps 3 + 4
     while True:
         srt = step3_convert_subtitles(XML, start_offset)
-        s4_out = step4_embed_subtitles(s2_out, srt)
+        final_out = step4_embed_subtitles(s2_out, srt)
         r = confirm_step("\nSteps 3+4 done. Accept the result?")
         if r == "y":
             break
         if r == "n":
             sys.exit("Stopped after steps 3+4.")
         # r == "r": redo
-    print(f"\nAll done!  Final file: {s4_out}")
+    print(f"\nAll done!  Final file: {final_out}")
 
     # Cleanup
     intermediates = [s1_out, s2_out, srt]
