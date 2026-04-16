@@ -6,6 +6,8 @@ Steps (run sequentially, each waits for user confirmation):
   1. Crop start  — trim leading content
   2. Crop end    — trim trailing content
   3. Convert & Embed — TTML → SRT, then mux video with all subtitle tracks into MP4
+  4. Embed subtitles — mux video + SRT into MP4, strip metadata
+  5. Compress    — scale to 720p and re-encode with H.264/CRF for smaller file size
 """
 
 import json
@@ -230,6 +232,27 @@ def step4_embed_subtitles(prev: Path, srt: Path) -> Path:
     return out
 
 
+def step5_compress(prev: Path) -> Path:
+    print("\n" + "=" * 60)
+    print("STEP 5 — Compress video (scale to 720p, H.264)")
+    print("=" * 60)
+    crf = ask("  CRF quality (18=high quality, 32=smaller file, 28=default)", "32")
+    out = OUT / "final_compressed.mp4"
+    run([
+        "ffmpeg",
+        "-i", str(prev),
+        "-map", "0",
+        "-vf", "scale=-2:720",
+        "-c:v", "libx264",
+        "-crf", crf,
+        "-preset", "fast",
+        "-c:a", "copy",
+        "-c:s", "copy",
+        "-y", str(out),
+    ], f"Scale to 720p, CRF={crf}")
+    print(f"\nOutput: {out}")
+    return out
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -291,10 +314,21 @@ def main():
         if r == "n":
             sys.exit("Stopped after steps 3+4.")
         # r == "r": redo
-    print(f"\nAll done!  Final file: {final_out}")
+
+    # Step 5
+    while True:
+        compressed_out = step5_compress(final_out)
+        r = confirm_step("\nStep 5 done. Accept the compressed result?")
+        if r == "y":
+            break
+        if r == "n":
+            sys.exit("Stopped after step 5.")
+        # r == "r": redo
+
+    print(f"\nAll done!  Final file: {compressed_out}")
 
     # Cleanup
-    intermediates = [s1_out, s2_out, srt]
+    intermediates = [s1_out, s2_out, srt, final_out]
     if confirm("\nDelete intermediate files?"):
         for f in intermediates:
             f.unlink(missing_ok=True)
