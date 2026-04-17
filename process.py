@@ -162,7 +162,7 @@ def step1_crop_start(mov: Path) -> tuple[float, Path]:
     dur = float(json.loads(probe.stdout)["format"]["duration"])
     print(f"Source: {mov}  (duration ≈ {dur:.1f}s / {dur/60:.1f} min)")
     t = parse_time(ask("  Enter start time to keep (HH:MM:SS or seconds)", "0"))
-    out = OUT / "step1_start_cropped.mov"
+    out = OUT / f"step1_start_cropped{mov.suffix}"
     run([
         "ffmpeg",
         "-ss", str(t),
@@ -186,7 +186,7 @@ def step2_crop_end(prev: Path) -> Path:
     dur = float(json.loads(probe.stdout)["format"]["duration"])
     print(f"Current duration: {dur:.1f}s / {dur/60:.1f} min  (end = {fmt_time(dur)})")
     t = parse_time(ask("  Enter end time to keep (HH:MM:SS or seconds)", fmt_time(dur)))
-    out = OUT / "step2_end_cropped.mov"
+    out = OUT / f"step2_end_cropped{prev.suffix}"
     run([
         "ffmpeg",
         "-i", str(prev),
@@ -198,22 +198,22 @@ def step2_crop_end(prev: Path) -> Path:
     return out
 
 
-def step3_convert_subtitles(xml: Path, start_offset: float) -> Path:
+def step3_convert_subtitles(xml: Path, start_offset: float, lang: str) -> Path:
     print("\n" + "=" * 60)
     print("STEP 3 — Convert TTML subtitles to SRT")
     print("=" * 60)
     nudge = float(ask("  Additional sync nudge in seconds (positive = later, negative = earlier)", "0"))
     tick_rate = get_tick_rate(xml)
-    srt = OUT / "subtitles_spa.srt"
+    srt = OUT / f"subtitles_{lang}.srt"
     ttml_to_srt(xml, start_offset - nudge, srt, tick_rate)
     return srt
 
 
-def step4_embed_subtitles(prev: Path, srt: Path) -> Path:
+def step4_embed_subtitles(prev: Path, srt: Path, lang: str) -> Path:
     print("\n" + "=" * 60)
     print("STEP 4 — Embed subtitles & strip metadata")
     print("=" * 60)
-    out = OUT / "final.mp4"
+    out = OUT / "step4_subtitled.mp4"
     cmd = [
         "ffmpeg",
         "-i", str(prev),
@@ -224,7 +224,7 @@ def step4_embed_subtitles(prev: Path, srt: Path) -> Path:
         "-metadata:s:v:0", "handler_name=VideoHandler",
         "-metadata:s:a:0", "handler_name=SoundHandler",
         "-metadata:s:v:0", "encoder=",
-        "-metadata:s:s:0", "language=spa",
+        "-metadata:s:s:0", f"language={lang}",
         "-y", str(out),
     ]
     run(cmd, "Mux video + subtitles, strip metadata → MP4")
@@ -236,20 +236,19 @@ def step5_compress(prev: Path) -> Path:
     print("\n" + "=" * 60)
     print("STEP 5 — Compress video (scale to 720p, H.264)")
     print("=" * 60)
-    crf = ask("  CRF quality (18=high quality, 32=smaller file, 28=default)", "32")
+    crf = ask("  CRF quality (18=high quality, 32=smaller file, 28=default)", "23")
     out = OUT / "final_compressed.mp4"
     run([
         "ffmpeg",
         "-i", str(prev),
         "-map", "0",
-        "-vf", "scale=-2:720",
         "-c:v", "libx264",
-        "-crf", crf,
-        "-preset", "fast",
-        "-c:a", "copy",
+        "-c:a", "aac",
         "-c:s", "copy",
+        "-crf", crf,
+        "-preset", "slow",
         "-y", str(out),
-    ], f"Scale to 720p, CRF={crf}")
+    ], f"Re-encode H.264 CRF={crf}")
     print(f"\nOutput: {out}")
     return out
 
@@ -260,13 +259,13 @@ def step5_compress(prev: Path) -> Path:
 
 def select_input_files() -> tuple[Path, Path]:
     data = Path("data")
-    movs = sorted(data.glob("*.mov"))
-    xmls = sorted(data.glob("*.xml"))
+    movs = sorted(data.glob("*.mov")) + sorted(data.glob("*.mp4"))
+    xmls = sorted(data.glob("*.xml")) + sorted(data.glob("*.ttml"))
 
     if not movs:
-        sys.exit("No .mov files found in data/")
+        sys.exit("No .mov or .mp4 files found in data/")
     if not xmls:
-        sys.exit("No .xml files found in data/")
+        sys.exit("No .xml or .ttml files found in data/")
 
     MOV = movs[0]
     XML = xmls[0]
@@ -283,6 +282,8 @@ def main():
     print("Video processing pipeline")
 
     MOV, XML = select_input_files()
+
+    lang = ask("Subtitle language code (e.g. spa, eng, fra)", "spa")
 
     # Step 1
     while True:
@@ -306,8 +307,8 @@ def main():
 
     # Steps 3 + 4
     while True:
-        srt = step3_convert_subtitles(XML, start_offset)
-        final_out = step4_embed_subtitles(s2_out, srt)
+        srt = step3_convert_subtitles(XML, start_offset, lang)
+        s3_out = step4_embed_subtitles(s2_out, srt, lang)
         r = confirm_step("\nSteps 3+4 done. Accept the result?")
         if r == "y":
             break
@@ -317,7 +318,7 @@ def main():
 
     # Step 5
     while True:
-        compressed_out = step5_compress(final_out)
+        compressed_out = step5_compress(s3_out)
         r = confirm_step("\nStep 5 done. Accept the compressed result?")
         if r == "y":
             break
@@ -328,7 +329,7 @@ def main():
     print(f"\nAll done!  Final file: {compressed_out}")
 
     # Cleanup
-    intermediates = [s1_out, s2_out, srt, final_out]
+    intermediates = [s1_out, s2_out, srt, s3_out]
     if confirm("\nDelete intermediate files?"):
         for f in intermediates:
             f.unlink(missing_ok=True)
