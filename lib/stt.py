@@ -13,6 +13,9 @@ load_dotenv()
 
 _client: ElevenLabs | None = None
 
+# Scribe v1 pay-as-you-go rate: https://elevenlabs.io/pricing/api
+_SCRIBE_COST_PER_HOUR = 0.22
+
 
 @dataclass
 class Word:
@@ -28,6 +31,11 @@ def _get_client() -> ElevenLabs:
     return _client
 
 
+def estimate_cost(audio_duration_secs: float) -> float:
+    """Estimate USD cost for transcribing audio of the given duration."""
+    return audio_duration_secs / 3600 * _SCRIBE_COST_PER_HOUR
+
+
 def transcribe(path: Path) -> list[Word]:
     """Transcribe an audio/video file, returning word-level timestamps."""
     with open(path, "rb") as f:
@@ -38,6 +46,10 @@ def transcribe(path: Path) -> list[Word]:
             tag_audio_events=False,
             diarize=False,
         )
+    if result.audio_duration_secs is not None:
+        cost = estimate_cost(result.audio_duration_secs)
+        print(f"stt: {result.audio_duration_secs:.1f}s audio, est. cost ${cost:.4f}")
+
     return [
         Word(text=w.text, start=w.start, end=w.end)
         for w in result.words
