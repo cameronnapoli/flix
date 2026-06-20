@@ -12,7 +12,4 @@ Takes a video and TTML as input. Transcribes a short audio sample (ElevenLabs ST
 
 ## 03_transcode.py
 
-Compress the .mp4 using the following operation (CRF 23, preset slow, 720p, H.264).
-```bash
-ffmpeg -i input.mp4 -map 0 -vf scale=-2:720 -c:v libx264 -c:a aac -c:s copy -crf 23 -preset slow -y output.mp4
-```
+Compress and reencode the video file using our standard.
