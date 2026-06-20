@@ -13,3 +13,7 @@ Takes a video and TTML as input. Transcribes a short audio sample (ElevenLabs ST
 ## 03_transcode.py
 
 Compress and reencode the video file using our standard.
+
+## 04_stage.py
+
+Moves the transcoded video into the upload directory (VIDEO_UPLOAD_DIR env var), ready for upload.
