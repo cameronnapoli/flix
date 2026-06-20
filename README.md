@@ -8,9 +8,7 @@ Cuts a video into multiple segments using ffmpeg and prompts from the user. Thes
 
 ## 02_merge.py
 
-Takes a video and TTML as input. We want to:
-1. Ensure the TTML subtitles are aligned with the contents of the video. We can use a STT library (elevenlabs) to capture a sample and then use the sample to align the timings.
-9. Convert the TTML to SRT and embed in the .mp4
+Takes a video and TTML as input. Transcribes a short audio sample (ElevenLabs STT) and asks Claude to find the constant offset between the subtitle and audio timing, shifts the TTML cues accordingly, converts them to SRT, and muxes the result into the .mp4 with proper subtitle metadata.
 
 ## 03_transcode.py
 

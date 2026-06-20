@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<tt ttp:contentProfiles="http://www.w3.org/ns/ttml/profile/imsc1.1/text" xmlns="http://www.w3.org/ns/ttml" xmlns:nttm="http://www.netflix.com/ns/ttml#metadata" xmlns:tt="http://www.w3.org/ns/ttml" xmlns:ttp="http://www.w3.org/ns/ttml#parameter" xmlns:tts="http://www.w3.org/ns/ttml#styling" xmlns:xml="http://www.w3.org/XML/1998/namespace" ttp:tickRate="10000000" ttp:timeBase="media" xml:lang="es">
+<head>
+<metadata nttm:movieID="80191168" nttm:packageID="1386971" nttm:schemaVersion="0" nttm:textType="CC" nttm:uuid="9ef54b35-9a20-451c-90fc-3ea435bbc03c"/>
+<styling>
+<initial tts:backgroundColor="transparent" tts:color="white" tts:displayAlign="after" tts:extent="80.000% 80.000%" tts:fontSize="6.000rh" tts:opacity="1.000" tts:origin="10.000% 10.000%" tts:showBackground="whenActive" tts:textAlign="center" tts:textOutline="black 0.300rh" tts:writingMode="lrtb"/>
+<style xml:id="style1" tts:fontStyle="italic"/>
+</styling>
+<layout>
+<region xml:id="region0" tts:displayAlign="after" tts:extent="80.000% 80.000%" tts:origin="10.000% 10.000%"/>
+<region xml:id="region1" tts:displayAlign="before" tts:extent="80.000% 80.000%" tts:origin="10.000% 10.000%"/>
+</layout>
+</head>
+<body>
+<div>
+<p xml:id="subtitle1" begin="29200000t" end="70000000t" region="region0">[teléfono sonando]</p>
+<p xml:id="subtitle2" begin="82800000t" end="98760000t" region="region0">[suspira]</p>
+<p xml:id="subtitle3" begin="99600000t" end="113600000t" region="region0">¿Bueno?</p>
+<p xml:id="subtitle4" begin="127430000t" end="152230000t" region="region0">A ver, Doc,<br/>habla más despacio, no te entiendo.</p>
+<p xml:id="subtitle5" begin="174300000t" end="187900000t" region="region0">¿Prensa?</p>
+<p xml:id="subtitle47" begin="1786320000t" end="1801300000t" region="region1">[Hugo]<span style="style1">&quot;Luis Miguel maltrata a fan.</span>.</p>
+<p xml:id="subtitle103" begin="3522060000t" end="3545330000t" region="region0"><span style="style1">♪ De pronto, flash ♪</span></p>
+<p xml:id="subtitle316" begin="10289060000t" end="10317860000t" region="region0">[Lucía] <span style="style1">Ya te extrañaba.</span><br/><span style="style1">¿Qué hacés, cenando?</span></p>
+</div>
+</body>
+</tt>
