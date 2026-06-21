@@ -21,7 +21,7 @@ def _get_client() -> Anthropic:
     return _client
 
 
-def ask(prompt: str, system: str | None = None, model: str = DEFAULT_MODEL, max_tokens: int = 1024) -> str:
+def complete(prompt: str, system: str | None = None, model: str = DEFAULT_MODEL, max_tokens: int = 1024) -> str:
     """Send a single prompt to Claude and return its text response."""
     response = _get_client().messages.create(
         model=model,
@@ -32,7 +32,7 @@ def ask(prompt: str, system: str | None = None, model: str = DEFAULT_MODEL, max_
     return "".join(block.text for block in response.content if block.type == "text")
 
 
-def ask_structured(
+def complete_structured(
     prompt: str,
     schema: dict,
     system: str | None = None,

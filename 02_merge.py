@@ -6,16 +6,16 @@ STT-transcribe a short sample, ask Claude for the constant offset between
 subtitle and audio time, shift all cues, write .srt, mux into the .mp4.
 """
 
-import sys
+import argparse
 from pathlib import Path
 
+from lib.cli import select_file
+from lib.constants import DATA, TTML_EXTS, VIDEO_EXTS
 from lib.ffmpeg import run
-from lib.llm import ask_structured
+from lib.llm import complete_structured
 from lib.stt import Word, transcribe
 from lib.ttml import Cue, get_language, parse_ttml, write_srt
 
-DATA = Path("data")
-VIDEO_EXTS = (".mov", ".mp4", ".mkv")
 SAMPLE_SECONDS = 45
 WORDS_PER_TIMESTAMP = 8  # anchor every N words instead of every word, to save tokens
 
@@ -30,19 +30,11 @@ OFFSET_SCHEMA = {
 }
 
 
-def confirm(msg: str) -> bool:
-    return input(f"{msg} (y/n): ").strip().lower() == "y"
-
-
-def select_file(exts: tuple[str, ...], kind: str) -> Path:
-    matches = sorted(p for p in DATA.iterdir() if p.suffix.lower() in exts)
-    if not matches:
-        sys.exit(f"No {kind} files ({', '.join(exts)}) found in data/")
-    chosen = matches[0]
-    print(f"Found {kind}: {chosen}")
-    if not confirm("Use this file?"):
-        sys.exit("Aborted.")
-    return chosen
+def parse_args():
+    parser = argparse.ArgumentParser(description="Align a TTML's subtitle timing to a video's audio and embed it.")
+    parser.add_argument("-f", "--file", help="input video file (skip interactive selection)")
+    parser.add_argument("-t", "--ttml", help="input TTML file (skip interactive selection)")
+    return parser.parse_args()
 
 
 def extract_sample_audio(video: Path, seconds: int, out: Path) -> None:
@@ -66,7 +58,7 @@ def compute_offset(words: list[Word], cues: list[Cue]) -> float:
     window = [c for c in cues if c.start < SAMPLE_SECONDS]
     subtitles = "\n".join(f"[{c.start:.2f}] {c.text}" for c in window)
     prompt = f"AUDIO TRANSCRIPT (word timestamps):\n{transcript}\n\nSUBTITLE CUES:\n{subtitles}"
-    result = ask_structured(prompt, OFFSET_SCHEMA, system=SYSTEM_PROMPT)
+    result = complete_structured(prompt, OFFSET_SCHEMA, system=SYSTEM_PROMPT)
     return float(result["offset_seconds"])
 
 
@@ -91,9 +83,10 @@ def embed_subtitles(video: Path, srt: Path, lang: str, out: Path) -> None:
 
 def main():
     print("Merge -- align TTML subtitles to audio and embed as SRT")
+    args = parse_args()
 
-    video = select_file(VIDEO_EXTS, "video")
-    ttml = select_file((".ttml",), "TTML")
+    video = select_file(args.file, DATA, VIDEO_EXTS, "video")
+    ttml = select_file(args.ttml, DATA, TTML_EXTS, "TTML")
 
     out_dir = DATA / "merged"
     out_dir.mkdir(exist_ok=True)

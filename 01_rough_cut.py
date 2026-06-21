@@ -6,47 +6,40 @@ Segments are extracted with stream copy (fast, keyframe-aligned), so cut
 points are not frame-accurate -- just close enough for a rough cut.
 """
 
+import argparse
 import sys
-from pathlib import Path
+
+from lib.cli import ask, select_file
+from lib.constants import DATA, VIDEO_EXTS
 from lib.ffmpeg import cut_segment, fmt_time, parse_time, probe_duration
 
 
-DATA = Path("data")
-VIDEO_EXTS = (".mov", ".mp4", ".mkv")
+def parse_args():
+    parser = argparse.ArgumentParser(description="Split a video into multiple rough segments.")
+    parser.add_argument("-f", "--file", help="input video file (skip interactive selection)")
+    parser.add_argument(
+        "--segment",
+        nargs="+",
+        action="append",
+        metavar=("START", "END"),
+        help="START [END] time of a segment to cut (HH:MM:SS or seconds); "
+        "repeat for multiple segments. If omitted, prompts interactively.",
+    )
+    return parser.parse_args()
 
 
-def ask(prompt: str, default: str = "") -> str:
-    hint = f" [{default}]" if default else ""
-    val = input(f"{prompt}{hint}: ").strip()
-    return val if val else default
+def collect_segments_from_cli(specs: list[list[str]]) -> list[tuple[float, float | None]]:
+    segments = []
+    for spec in specs:
+        if not 1 <= len(spec) <= 2:
+            sys.exit(f"--segment takes 1 or 2 values (START [END]), got: {spec}")
+        start = parse_time(spec[0])
+        end = parse_time(spec[1]) if len(spec) == 2 else None
+        segments.append((start, end))
+    return segments
 
 
-def confirm(msg: str) -> bool:
-    return input(f"{msg} (y/n): ").strip().lower() == "y"
-
-
-def select_input_file() -> Path:
-    videos = sorted(p for p in DATA.iterdir() if p.suffix.lower() in VIDEO_EXTS)
-    if not videos:
-        sys.exit(f"No video files ({', '.join(VIDEO_EXTS)}) found in data/")
-
-    video = videos[0]
-    print(f"Found video: {video}  ({video.stat().st_size / 1e9:.2f} GB)")
-    if not confirm("Use this file?"):
-        sys.exit("Aborted.")
-    return video
-
-
-def main():
-    print("Rough cut -- split a video into multiple segments")
-
-    src = select_input_file()
-    dur = probe_duration(src)
-    print(f"Duration: {fmt_time(dur)} ({dur / 60:.1f} min)")
-
-    out_dir = DATA / "rough_cut"
-    out_dir.mkdir(exist_ok=True)
-
+def collect_segments_interactively() -> list[tuple[float, float | None]]:
     segments = []
     n = 1
     while True:
@@ -57,12 +50,30 @@ def main():
         start = parse_time(start_s)
         end_s = ask("  End time (HH:MM:SS or seconds, blank for end of video)")
         end = parse_time(end_s) if end_s else None
+        segments.append((start, end))
+        n += 1
+    return segments
 
+
+def main():
+    print("Rough cut -- split a video into multiple segments")
+    args = parse_args()
+
+    src = select_file(args.file, DATA, VIDEO_EXTS, "video")
+    dur = probe_duration(src)
+    print(f"Duration: {fmt_time(dur)} ({dur / 60:.1f} min)")
+
+    out_dir = DATA / "rough_cut"
+    out_dir.mkdir(exist_ok=True)
+
+    times = collect_segments_from_cli(args.segment) if args.segment else collect_segments_interactively()
+
+    segments = []
+    for n, (start, end) in enumerate(times, 1):
         out = out_dir / f"{src.stem}_segment{n:02d}{src.suffix}"
         cut_segment(src, start, end, out)
         print(f"  -> {out}")
         segments.append(out)
-        n += 1
 
     if not segments:
         sys.exit("No segments created.")

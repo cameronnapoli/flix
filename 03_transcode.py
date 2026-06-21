@@ -6,33 +6,18 @@ Scales to 720p and reencodes with H.264 (CRF 23, preset slow) + AAC audio,
 copying subtitle streams through untouched.
 """
 
-import sys
+import argparse
 from pathlib import Path
 
+from lib.cli import select_file
+from lib.constants import DATA, VIDEO_EXTS
 from lib.ffmpeg import run
 
-DATA = Path("data")
-VIDEO_EXTS = (".mov", ".mp4", ".mkv")
-SEARCH_DIRS = (DATA / "merged", DATA)
 
-
-def confirm(msg: str) -> bool:
-    return input(f"{msg} (y/n): ").strip().lower() == "y"
-
-
-def select_input_file() -> Path:
-    for d in SEARCH_DIRS:
-        if not d.exists():
-            continue
-        matches = sorted(p for p in d.iterdir() if p.suffix.lower() in VIDEO_EXTS)
-        if matches:
-            video = matches[0]
-            print(f"Found video: {video}  ({video.stat().st_size / 1e9:.2f} GB)")
-            if not confirm("Use this file?"):
-                sys.exit("Aborted.")
-            return video
-    searched = ", ".join(str(d) for d in SEARCH_DIRS)
-    sys.exit(f"No video files ({', '.join(VIDEO_EXTS)}) found in {searched}")
+def parse_args():
+    parser = argparse.ArgumentParser(description="Compress and reencode a video to the standard delivery format.")
+    parser.add_argument("-f", "--file", help="input video file (skip interactive selection)")
+    return parser.parse_args()
 
 
 def transcode(src: Path, out: Path) -> None:
@@ -50,8 +35,9 @@ def transcode(src: Path, out: Path) -> None:
 
 def main():
     print("Transcode -- compress and reencode video to standard format")
+    args = parse_args()
 
-    src = select_input_file()
+    src = select_file(args.file, DATA, VIDEO_EXTS, "video")
 
     out_dir = DATA / "transcoded"
     out_dir.mkdir(exist_ok=True)
