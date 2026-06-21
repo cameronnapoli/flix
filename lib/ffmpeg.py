@@ -45,14 +45,47 @@ def fmt_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:06.3f}"
 
 
+def probe_keyframe_interval(path: Path, around: float = 0.0, window: float = 120.0) -> float:
+    """Estimate the keyframe (GOP) interval near `around`, in seconds."""
+    default = 10.0
+    offset = max(0.0, around - 5.0)
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-read_intervals", f"{offset}%+{window}",
+            "-show_entries", "packet=pts_time,flags",
+            "-of", "csv=p=0",
+            str(path),
+        ],
+        capture_output=True, text=True,
+    )
+    times = []
+    for line in result.stdout.splitlines():
+        pts_time, _, flags = line.partition(",")
+        if "K" not in flags:
+            continue
+        try:
+            times.append(float(pts_time))
+        except ValueError:
+            continue
+    times.sort()
+    gaps = [b - a for a, b in zip(times, times[1:])]
+    return max(gaps) if gaps else default
+
+
 def cut_segment(src: Path, start: float, end: float | None, out: Path) -> None:
     """
-    Extract [start, end) from src into out using stream copy (fast, keyframe-aligned).
-    Not frame-accurate -- intended for rough cuts, not precise edits.
+    Extract [start, end) from src into out using stream copy (fast, keyframe-aligned,
+    not frame-accurate). Seeks a bit before `start` since the keyframe seek can
+    otherwise land after it and chop off the beginning of the segment.
     """
-    args = ["ffmpeg", "-ss", str(start), "-i", str(src)]
+    interval = probe_keyframe_interval(src, around=start)
+    buffered_start = max(0.0, start - interval - 1.0)
+    args = ["ffmpeg", "-ss", str(buffered_start)]
     if end is not None:
-        args += ["-t", str(end - start)]
-    args += ["-c", "copy", "-y", str(out)]
-    desc = f"Cut {fmt_time(start)} -> {fmt_time(end) if end is not None else 'end'}"
+        # -to (input option) is an absolute source timestamp, so it's unaffected
+        # by where the -ss seek actually lands -- unlike -t, a relative duration.
+        args += ["-to", str(end)]
+    args += ["-i", str(src), "-c", "copy", "-y", str(out)]
+    desc = f"Cut {fmt_time(start)} -> {fmt_time(end) if end is not None else 'end'} (seek buffer {fmt_time(buffered_start)})"
     run(args, desc)
