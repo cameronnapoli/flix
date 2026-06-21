@@ -81,6 +81,7 @@ def cut_segment(src: Path, start: float, end: float | None, out: Path) -> None:
     """
     interval = probe_keyframe_interval(src, around=start)
     buffered_start = max(0.0, start - interval - 1.0)
+    # -ss before -i forces us to seek to keyframe first
     args = ["ffmpeg", "-ss", str(buffered_start)]
     if end is not None:
         # -to (input option) is an absolute source timestamp, so it's unaffected
